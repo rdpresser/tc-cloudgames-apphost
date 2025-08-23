@@ -1,0 +1,56 @@
+﻿using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
+
+namespace TC.CloudGames.AppHost.Aspire.Extensions
+{
+    public class ParameterRegistry
+    {
+        private readonly List<ResolvedParameter> _parameters = new();
+
+        public ResolvedParameter Add(
+            IDistributedApplicationBuilder builder,
+            string parameterName,
+            string configKey,
+            string envVarName,
+            string defaultValue,
+            bool secret = false)
+        {
+            var param = builder.AddResolvedParameter(
+                parameterName: parameterName,
+                configKey: configKey,
+                envVarName: envVarName,
+                defaultValue: defaultValue,
+                secret: secret
+            );
+
+            _parameters.Add(param);
+            return param;
+        }
+
+        public ResolvedParameter this[string parameterName] =>
+            _parameters.First(p => p.ParameterName == parameterName);
+
+        public void LogAll(IConfiguration config, ILogger logger)
+        {
+            foreach (var param in _parameters)
+            {
+                string source;
+                string value = param.Value;
+
+                if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable(param.EnvVarName)))
+                    source = $"🌍 ENV ({param.EnvVarName})";
+                else if (!string.IsNullOrEmpty(config[param.ConfigKey]))
+                    source = $"📘 appsettings ({param.ConfigKey})";
+                else
+                    source = "🪫 default";
+
+                if (param.Secret)
+                    logger.LogInformation($"🔐 {param.ParameterName} resolved from {source}: ✔️ (secret)");
+                else
+                    logger.LogInformation($"🔎 {param.ParameterName} resolved from {source}: {value}");
+            }
+        }
+
+        public IEnumerable<ResolvedParameter> All => _parameters;
+    }
+}
