@@ -8,11 +8,16 @@ namespace TC.CloudGames.AppHost.Aspire.Startup
             IDistributedApplicationBuilder builder,
             ParameterRegistry registry,
             IResourceBuilder<PostgresServerResource> postgres,
-            IResourceBuilder<PostgresServerResource> userDb,
+            IResourceBuilder<PostgresDatabaseResource> userDb,
             IResourceBuilder<RedisResource> redis,
             IResourceBuilder<RabbitMQServerResource> rabbit)
         {
             builder.AddProject<Projects.TC_CloudGames_Users_Api>("users-api")
+                // Health checks separados
+                .WithHealthCheck("users-api-health")
+                .WithHttpHealthCheck("/health")
+                .WithHttpHealthCheck("/ready")
+                .WithHttpHealthCheck("/live")
                 .WithReference(postgres)   // Needed for schema/table creation via Marten/Wolverine
                 .WithReference(userDb)     // Needed for DB connection
                 .WithReference(redis)

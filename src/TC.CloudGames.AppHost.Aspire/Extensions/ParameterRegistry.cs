@@ -5,7 +5,7 @@ namespace TC.CloudGames.AppHost.Aspire.Extensions
 {
     public class ParameterRegistry
     {
-        private readonly List<ResolvedParameter> _parameters = new();
+        private readonly HashSet<ResolvedParameter> _parameters = new();
 
         public ResolvedParameter Add(
             IDistributedApplicationBuilder builder,
@@ -27,8 +27,14 @@ namespace TC.CloudGames.AppHost.Aspire.Extensions
             return param;
         }
 
-        public ResolvedParameter this[string parameterName] =>
-            _parameters.First(p => p.ParameterName == parameterName);
+        public ResolvedParameter this[string parameterName]
+        {
+            get
+            {
+                var param = _parameters.FirstOrDefault(p => p.ParameterName == parameterName);
+                return param ?? throw new KeyNotFoundException($"Parameter '{parameterName}' not found.");
+            }
+        }
 
         public void LogAll(IConfiguration config, ILogger logger)
         {
@@ -51,6 +57,9 @@ namespace TC.CloudGames.AppHost.Aspire.Extensions
             }
         }
 
-        public IEnumerable<ResolvedParameter> All => _parameters;
+        public IReadOnlyCollection<ResolvedParameter> Parameters => _parameters;
+
+        public bool Contains(string parameterName) =>
+            _parameters.Any(p => p.ParameterName == parameterName);
     }
 }
