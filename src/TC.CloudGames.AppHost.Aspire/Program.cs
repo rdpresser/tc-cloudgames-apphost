@@ -18,12 +18,12 @@ var logger = loggerFactory.CreateLogger("Startup");
 var registry = ParameterSetup.ConfigureParameters(builder, logger);
 
 // Setup services
-var (postgres, userDb) = ServiceSetup.ConfigurePostgres(builder, registry);
+var (postgres, userDb, gamesDb, paymentsDb, maintenanceDb) = ServiceSetup.ConfigurePostgres(builder, registry);
 var redis = ServiceSetup.ConfigureRedis(builder, registry);
 var rabbit = ServiceSetup.ConfigureRabbitMQ(builder, registry);
 
 // Setup projects
-ProjectSetup.ConfigureUsersApi(builder, registry, postgres, userDb, redis, rabbit);
+ProjectSetup.ConfigureUsersApi(builder, registry, postgres, userDb, maintenanceDb, redis, rabbit);
 
 // Run
 await builder.Build().RunAsync();

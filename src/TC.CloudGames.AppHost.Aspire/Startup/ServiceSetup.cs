@@ -4,51 +4,61 @@ namespace TC.CloudGames.AppHost.Aspire.Startup
 {
     public static class ServiceSetup
     {
-        public static (IResourceBuilder<PostgresServerResource> postgres, IResourceBuilder<PostgresDatabaseResource> userDb) ConfigurePostgres(
+        public static (IResourceBuilder<PostgresServerResource> postgres, IResourceBuilder<PostgresDatabaseResource> userDb,
+            IResourceBuilder<PostgresDatabaseResource> gameDb, IResourceBuilder<PostgresDatabaseResource> paymentDb,
+            IResourceBuilder<PostgresDatabaseResource> maintenanceDb) ConfigurePostgres(
             IDistributedApplicationBuilder builder, ParameterRegistry registry)
         {
-            var dbName = builder.Configuration["Database:Name"] ?? "tc-cloudgames-users-db";
-            var dbPort = int.TryParse(builder.Configuration["Database:Port"], out var port) ? port : 5432;
+            var usersDbName = builder.Configuration["Database:UsersDbName"];
+            var gamesDbName = builder.Configuration["Database:GamesDbName"];
+            var paymentsDbName = builder.Configuration["Database:PaymentsDbName"];
+            var maintenanceDbName = builder.Configuration["Database:MaintenanceDbName"];
 
             if (!registry.Contains("postgres-user") || !registry.Contains("postgres-password"))
                 throw new InvalidOperationException("Missing Postgres credentials in ParameterRegistry.");
 
-            var postgres = builder.AddPostgres("TC-CloudGames-DbPg-Host")
-                .WithImage("postgres:latest")
-                .WithHealthCheck("postgres-health")
-                .WithUserName(registry["postgres-user"].Resource)
-                .WithPassword(registry["postgres-password"].Resource)
-                .WithEnvironment("POSTGRES_DB", dbName)
-                .WithVolume("tccloudgames_pg_data", "/var/lib/postgresql/data")
-                .WithEndpoint(dbPort, 54320, name: "postgres-db");
+            var postgres = builder.AddPostgres(builder.Configuration["Database:Host"]!)
+            .WithImage("postgres:latest")
+            .WithContainerName("TC-CloudGames-Db")
+            .WithDataVolume("tccloudgames_postgres_data", isReadOnly: false)
+            .WithPgAdmin(options => options
+                .WithImage("dpage/pgadmin4:latest")
+                .WithVolume("tccloudgames_pgadmin_data", "/var/lib/pgadmin")
+                .WithContainerName("TC-CloudGames-PgAdmin4")
+                ////.WithParameterEnv("PGADMIN_DEFAULT_EMAIL", registry["pgadmin-user"])
+                ////.WithParameterEnv("PGADMIN_DEFAULT_PASSWORD", registry["pgadmin-password"])
+                ////.WithEndpoint(port: 8080, targetPort: 80, name: "pgadmin-web")
+                )
+            .WithUserName(registry["postgres-user"].Resource)
+            .WithPassword(registry["postgres-password"].Resource)
+            .WithHostPort(65432);
 
-            var userDb = postgres.AddDatabase(dbName);
-            return (postgres, userDb);
+            var userDb = postgres.AddDatabase("UsersDbConnection", usersDbName);
+            var gamesDb = postgres.AddDatabase("GamesDbConnection", gamesDbName);
+            var paymentsDb = postgres.AddDatabase("PaymentsDbConnection", paymentsDbName);
+            var maintenanceDb = postgres.AddDatabase("MaintenanceDbConnection", maintenanceDbName);
+
+            return (postgres, userDb, gamesDb, paymentsDb, maintenanceDb);
         }
 
         public static IResourceBuilder<RedisResource> ConfigureRedis(IDistributedApplicationBuilder builder, ParameterRegistry registry)
         {
-            return builder.AddRedis("TC-CloudGames-Redis-Host")
+            int redisPort = int.Parse(registry["redis-port"].Value!);
+            return builder.AddRedis(
+                    name: builder.Configuration["Cache:Host"]!,
+                    port: redisPort,
+                    password: registry["redis-password"].Resource)
                 .WithImage("redis:latest")
-                .WithHealthCheck("redis-health")
-                .WithVolume("tccloudgames_redis_data", "/data")
-                .WithArgs("redis-server", "--appendonly", "yes", "--appendfilename", "appendonly.aof", "--dir", "/data")
-                .WithParameterEnv("REDIS_PASSWORD", registry["redis-password"])
-                .WithEndpoint(6379, 6379, name: "redis-tcp");
+                .WithContainerName("TC-CloudGames-Redis")
+                .WithDataVolume("tccloudgames_redis_data", isReadOnly: false);
         }
 
         public static IResourceBuilder<RabbitMQServerResource> ConfigureRabbitMQ(IDistributedApplicationBuilder builder, ParameterRegistry registry)
         {
-            return builder.AddRabbitMQ("TC-CloudGames-RabbitMq-Host")
-                .WithImage("rabbitmq:3-management")
-                .WithHealthCheck("rabbitmq-health")
-                .WithParameterEnv("RABBITMQ_DEFAULT_USER", registry["rabbitmq-user"])
-                .WithParameterEnv("RABBITMQ_DEFAULT_PASS", registry["rabbitmq-password"])
-                .WithEnvironment("RABBITMQ_DEFAULT_VHOST", "/")
-                .WithVolume("tccloudgames_rabbitmq_data", "/var/lib/rabbitmq")
-                .WithEndpoint(5672, 5672, name: "rabbitmq-amqp")
-                .WithEndpoint(15672, 15672, name: "rabbitmq-management")
-                .WithEndpoint(15692, 15692, name: "rabbitmq-metrics");
+            return builder.AddRabbitMQ(builder.Configuration["RabbitMq:Host"]!, userName: registry["rabbitmq-user"].Resource, password: registry["rabbitmq-password"].Resource, port: 55672)
+                .WithContainerName("TC-CloudGames-RabbitMq")
+                .WithDataVolume("tccloudgames_rabbitmq_data", isReadOnly: false)
+                .WithManagementPlugin(15672);
         }
     }
 }

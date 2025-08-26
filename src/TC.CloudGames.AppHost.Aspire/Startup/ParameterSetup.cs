@@ -18,7 +18,8 @@ namespace TC.CloudGames.AppHost.Aspire.Startup
             registry.Add(builder, "rabbitmq-password", "RabbitMq:Password", "RABBITMQ_PASSWORD", "guest", secret: true);
 
             // Redis
-            registry.Add(builder, "redis-password", "Cache:Password", "CACHE_PASSWORD", "", secret: true);
+            registry.Add(builder, "redis-password", "Cache:Password", "CACHE_PASSWORD", "Redis@123", secret: true);
+            registry.Add(builder, "redis-port", "Cache:Port", "CACHE_PORT", "56379");
 
             registry.LogAll(builder.Configuration, logger);
             return registry;
